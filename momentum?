@@ -1,0 +1,37 @@
+# Calculate indicators for the first stock
+stock_column = merged_df.columns[1]
+def calculate_indicators(data, column, rsi_window=14, ma_window=20):
+    delta = data[column].diff()
+    gain = delta.where(delta > 0, 0).rolling(window=rsi_window).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=rsi_window).mean()
+    rs = gain / loss
+    data['RSI'] = 100 - (100 / (1 + rs))
+    data['MA'] = data[column].rolling(window=ma_window).mean()
+    return data
+
+# Generate signals for the first stock
+def generate_signals(data, column, rsi_high=70, rsi_low=30):
+    data['Signal'] = 0
+    data.loc[data['RSI'] > rsi_high, 'Signal'] = -1
+    data.loc[data['RSI'] < rsi_low, 'Signal'] = 1
+    data['Combined_Signal'] = data['Signal'] + (data[column] > data['MA']).astype(int) - (data[column] < data['MA']).astype(int)
+    return data
+
+# Machine learning to predict buy/sell signals
+def prepare_ml_data(data, column):
+    data = data.dropna()
+    X = data[[column, 'RSI', 'MA']]
+    y = data['Signal']
+    return train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Main flow
+merged_df = calculate_indicators(merged_df, stock_column)
+merged_df = generate_signals(merged_df, stock_column)
+
+X_train, X_test, y_train, y_test = prepare_ml_data(merged_df, stock_column)
+model = RandomForestClassifier(random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+print("Classification Report:\n")
+print(classification_report(y_test, y_pred))
