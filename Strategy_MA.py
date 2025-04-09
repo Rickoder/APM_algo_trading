@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sklearn
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras.layers import Input, Dense, LSTM
+from tensorflow.keras.layers import Conv1D, ConvLSTM1D, GRU, Dense, Flatten, Reshape, Input, LSTM, GlobalAveragePooling1D
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.preprocessing.sequence import TimeseriesGenerator
 from sklearn.preprocessing import MinMaxScaler
@@ -31,8 +31,8 @@ plt.rc('figure', figsize=(5.0, 3.0))
 
 df = pd.read_csv('DF_data_cleaned.csv', parse_dates=['Date'], index_col='Date')
 
-ma_windows_values = [5, 7, 10, 15, 20, 30, 50, 70, 100, 150, 200, 250, 300, 400]
-rsi_window_values = [5, 7, 10, 15, 20, 30, 50, 70]
+ma_windows_values = [5, 100, 50, 400]
+rsi_window_values = [5, 7, 10, 15]
 
 def df_creator(stock, ma_windows, rsi_windows): 
 
@@ -41,8 +41,8 @@ def df_creator(stock, ma_windows, rsi_windows):
             "Returns": stock.shift(1).pct_change().dropna(),
             "Volatility": stock.pct_change().shift(1).rolling(window=30).std() * np.sqrt(252),
             "day_of_week": stock.index.dayofweek,
-            "is_month_end": stock.index.is_month_start.astype(int),
-            "is_month_start": stock.index.is_month_start.astype(int)
+            #"is_month_end": stock.index.is_month_start.astype(int),
+            #"is_month_start": stock.index.is_month_start.astype(int)
             }
 
     for window in ma_windows:
@@ -94,8 +94,8 @@ scaled_data, labels = df_creator(df['AAPL_adjclose'], ma_windows_values, rsi_win
 
 labels = labels[-len(scaled_data):]
 
-timesteps = 10 # hyperparmeter to adjust later 
-batch_size = 32
+timesteps = 30 # hyperparmeter to adjust later 
+batch_size = 16
 
 # Split data into training and testing sets (80% train, 20% test)
 split_idx = int(len(scaled_data) * 0.8)
@@ -132,9 +132,32 @@ for X_batch, y_batch in train_generator:
 
 n_features = scaled_data.shape[1]
 
+# Instantiate the model
 model = Sequential()
-model.add(Input(shape=(timesteps, n_features)))
-model.add(LSTM(50, activation="relu"))
-model.add(Dense(1, activation="sigmoid"))  # for binary classification
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Add an Input layer explicitly defining the input shape
+model.add(Input(shape=(10, n_features)))
+
+model.add(GRU(64, return_sequences=True))  # restituisce un vettore finale
+
+model.add(Conv1D(filters=64, kernel_size=3, activation='relu'))
+
+
+# Output layer
+model.add(Dense(1, activation='sigmoid'))
+
+
+# Compile the model
+model.compile(
+    loss='binary_crossentropy',
+    optimizer='adam',
+    metrics=['accuracy', 'Precision', 'Recall', 'AUC']
+)
+
+
+# Print model summary
 model.summary()
+
+
+history = model.fit(
+    train_generator, validation_data=test_generator, epochs=20, verbose=1)
