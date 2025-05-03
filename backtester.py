@@ -31,6 +31,24 @@ def run_backtest(prices: pd.Series,
     strat_ret: pd.Series of daily strategy returns
     metrics  : dict of total_return, sharpe, max_drawdown
     """
+    # 0) Pre-process raw signals so:
+    #    • +1→+1 (and –1→–1) maintains the existing unit position
+    #    • 0 only flattens you after five consecutive zeros
+    sig = signals.copy().astype(int)
+    prev_sig = 0
+    zero_run = 0
+    for i in range(len(sig)):
+        if sig.iloc[i] == 0 and prev_sig != 0:
+            zero_run += 1
+            if zero_run < 5:
+                sig.iloc[i] = prev_sig
+            else:
+                prev_sig, zero_run = 0, 0
+        else:
+            prev_sig = sig.iloc[i]
+            zero_run = 0
+    signals = sig
+
     # 1) Align positions: you only earn returns AFTER you take the pos
     pos = signals.shift(1).fillna(0)
 
@@ -44,6 +62,12 @@ def run_backtest(prices: pd.Series,
     trades    = pos.diff().abs()
     strat_ret -= trades * cost_per_trade
 
+    stop_loss = 0.15   # 15% stop-loss threshold
+        equity_temp = (1 + strat_ret).cumprod()
+        dd = (equity_temp.cummax() - equity_temp) / equity_temp.cummax()
+        # wherever drawdown exceeds our threshold, force a loss of exactly stop_loss
+        strat_ret[dd > stop_loss] = -stop_loss
+        
     # 5) Equity curve
     equity = (1 + strat_ret).cumprod()
 
