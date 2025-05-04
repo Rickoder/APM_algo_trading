@@ -63,10 +63,10 @@ def run_backtest(prices: pd.Series,
     strat_ret -= trades * cost_per_trade
 
     stop_loss = 0.15   # 15% stop-loss threshold
-        equity_temp = (1 + strat_ret).cumprod()
-        dd = (equity_temp.cummax() - equity_temp) / equity_temp.cummax()
-        # wherever drawdown exceeds our threshold, force a loss of exactly stop_loss
-        strat_ret[dd > stop_loss] = -stop_loss
+    equity_temp = (1 + strat_ret).cumprod()
+    dd = (equity_temp.cummax() - equity_temp) / equity_temp.cummax()
+    # wherever drawdown exceeds our threshold, force a loss of exactly stop_loss
+    strat_ret[dd > stop_loss] = -stop_loss
         
     # 5) Equity curve
     equity = (1 + strat_ret).cumprod()
